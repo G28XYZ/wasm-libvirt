@@ -1,0 +1,16 @@
+{
+  "name": "wasm-libvirt-workspace",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test packages/libvirt-adapter/test/*.test.mjs",
+    "check": "npm run build && npm test",
+    "prototype:feasibility": "node prototypes/virt-wasm-feasibility/runner.mjs --all",
+    "prototype:feasibility:interactive": "node prototypes/virt-wasm-feasibility/runner.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.3.3"
+  }
+}

@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<node>
+  <domain type="test" xmlns:test="http://libvirt.org/schemas/domain/test/1.0">
+    <test:runstate>5</test:runstate>
+    <name>stopped-test</name>
+    <uuid>11111111-2222-3333-4444-555555555555</uuid>
+    <memory unit="KiB">65536</memory>
+    <vcpu>1</vcpu>
+    <os>
+      <type>hvm</type>
+    </os>
+  </domain>
+  <memory>1048576</memory>
+</node>

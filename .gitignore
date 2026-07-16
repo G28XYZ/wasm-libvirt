@@ -1,0 +1,8 @@
+/target/
+/packages/libvirt-adapter/dist/
+/packages/libvirt-adapter/native/
+/packages/libvirt-adapter/wasm/
+/prototypes/virt-wasm-feasibility/target/
+/node_modules/
+*.tgz
+docs

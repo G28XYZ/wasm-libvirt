@@ -1,0 +1,12 @@
+[workspace]
+members = ["wasm-core", "direct-virt", "native-host"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+virt = "0.4.3"
+wasm-bindgen = "0.2.100"

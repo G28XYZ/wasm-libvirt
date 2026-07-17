@@ -3,17 +3,47 @@ import { readFile } from "node:fs/promises";
 import { createInterface, type Interface as ReadlineInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
+/** Параметры создания клиента libvirt. */
 export interface CreateLibvirtClientOptions {
+  /**
+   * Таймаут по умолчанию для операций в миллисекундах.
+   * Переопределяется `OperationOptions.timeoutMs` конкретного вызова.
+   */
+  defaultTimeoutMs?: number;
+  /**
+   * URI соединения libvirt, например `qemu:///system` или `test:///default`.
+   * По умолчанию используется `qemu:///system`.
+   */
   uri?: string;
 }
 
+/** Дополнительные параметры одного асинхронного вызова. */
+export interface OperationOptions {
+  /**
+   * Сигнал отмены ожидания результата.
+   * Отмена не означает откат уже отправленной в libvirt операции.
+   */
+  signal?: AbortSignal;
+  /**
+   * Положительный таймаут ожидания в миллисекундах.
+   * Имеет приоритет над `CreateLibvirtClientOptions.defaultTimeoutMs`.
+   */
+  timeoutMs?: number;
+}
+
+/** Состояние открытого соединения с libvirt. */
 export interface LibvirtHealth {
+  /** Всегда `"ready"` для успешно созданного клиента. */
   state: "ready";
+  /** Возвращает `true`, когда libvirt считает соединение живым. */
   alive: boolean;
+  /** Тип гипервизора, например `"QEMU"` или `"TEST"`. */
   hypervisor: string;
+  /** Канонический URI фактически открытого соединения. */
   uri: string;
 }
 
+/** Нормализованное состояние домена libvirt. */
 export type DomainState =
   | "running"
   | "blocked"
@@ -24,37 +54,120 @@ export type DomainState =
   | "suspended"
   | "unknown";
 
+/** Краткое сериализуемое представление домена. */
 export interface DomainSummary {
+  /** Runtime ID работающего домена; `null` для неактивного домена. */
   id: number | null;
+  /** Имя домена, уникальное в пределах соединения. */
   name: string;
+  /** Текущее нормализованное состояние домена. */
   state: DomainState;
+  /** Неизменяемый UUID домена. */
   uuid: string;
 }
 
+/** Выбор домена по UUID. Не комбинируется с `DomainByName`. */
 export interface DomainByUuid {
+  /** UUID домена в строковом представлении. */
   uuid: string;
 }
 
+/** Выбор домена по имени. Не комбинируется с `DomainByUuid`. */
 export interface DomainByName {
+  /** Имя домена. */
   name: string;
 }
 
+/**
+ * Способ выбрать домен. Передавайте ровно одно поле: `{ name }` или `{ uuid }`.
+ * Пустые значения, NUL, табуляции и переводы строк отклоняются как
+ * `INVALID_ARGUMENT`.
+ */
 export type DomainSelector = DomainByUuid | DomainByName;
 
+/** Асинхронный клиент для управления одним соединением libvirt. */
 export interface LibvirtClient {
-  health(): Promise<LibvirtHealth>;
-  listDomains(): Promise<DomainSummary[]>;
-  getDomain(selector: DomainSelector): Promise<DomainSummary>;
-  getDomainXml(selector: DomainSelector): Promise<string>;
-  defineDomain(xml: string): Promise<DomainSummary>;
-  undefineDomain(selector: DomainSelector): Promise<void>;
-  startDomain(selector: DomainSelector): Promise<DomainSummary>;
-  shutdownDomain(selector: DomainSelector): Promise<DomainSummary>;
-  destroyDomain(selector: DomainSelector): Promise<DomainSummary>;
-  rebootDomain(selector: DomainSelector): Promise<DomainSummary>;
+  /**
+   * Проверяет состояние соединения.
+   * @param options Таймаут и сигнал отмены.
+   * @returns Сводку о соединении.
+   */
+  health(options?: OperationOptions): Promise<LibvirtHealth>;
+  /**
+   * Получает активные и неактивные домены.
+   * @param options Таймаут и сигнал отмены.
+   * @returns Нормализованный список доменов.
+   */
+  listDomains(options?: OperationOptions): Promise<DomainSummary[]>;
+  /**
+   * Находит один домен.
+   * @param selector Ровно один идентификатор: имя или UUID.
+   * @param options Таймаут и сигнал отмены.
+   * @returns Нормализованное состояние домена.
+   * @throws `NOT_FOUND`, если домен отсутствует.
+   */
+  getDomain(selector: DomainSelector, options?: OperationOptions): Promise<DomainSummary>;
+  /**
+   * Возвращает XML-описание домена от libvirt.
+   * @param selector Ровно один идентификатор: имя или UUID.
+   * @param options Таймаут и сигнал отмены.
+   * @returns XML в UTF-8 строке.
+   */
+  getDomainXml(selector: DomainSelector, options?: OperationOptions): Promise<string>;
+  /**
+   * Создаёт или обновляет persistent-домен из XML.
+   * @param xml XML-описание домена без NUL-байтов.
+   * @param options Таймаут и сигнал отмены.
+   * @returns Нормализованное состояние определённого домена.
+   * @throws `INVALID_DEFINITION` для XML, отклонённого libvirt.
+   */
+  defineDomain(xml: string, options?: OperationOptions): Promise<DomainSummary>;
+  /**
+   * Удаляет persistent-определение домена, но не его storage.
+   * @param selector Ровно один идентификатор: имя или UUID.
+   * @param options Таймаут и сигнал отмены.
+   */
+  undefineDomain(selector: DomainSelector, options?: OperationOptions): Promise<void>;
+  /**
+   * Запускает неактивный домен.
+   * @param selector Ровно один идентификатор: имя или UUID.
+   * @param options Таймаут и сигнал отмены.
+   * @returns Состояние домена после запуска.
+   * @throws `CONFLICT`, если домен уже активен.
+   */
+  startDomain(selector: DomainSelector, options?: OperationOptions): Promise<DomainSummary>;
+  /**
+   * Запрашивает мягкое выключение гостя.
+   * @param selector Ровно один идентификатор: имя или UUID.
+   * @param options Таймаут и сигнал отмены.
+   * @returns Состояние, прочитанное сразу после принятия запроса libvirt.
+   * @throws `CONFLICT`, если домен неактивен.
+   */
+  shutdownDomain(selector: DomainSelector, options?: OperationOptions): Promise<DomainSummary>;
+  /**
+   * Принудительно останавливает домен.
+   * @param selector Ровно один идентификатор: имя или UUID.
+   * @param options Таймаут и сигнал отмены.
+   * @returns Состояние домена после остановки.
+   * @throws `CONFLICT`, если домен неактивен.
+   */
+  destroyDomain(selector: DomainSelector, options?: OperationOptions): Promise<DomainSummary>;
+  /**
+   * Перезагружает активный домен стандартным механизмом libvirt.
+   * @param selector Ровно один идентификатор: имя или UUID.
+   * @param options Таймаут и сигнал отмены.
+   * @returns Состояние домена после принятия запроса.
+   * @throws `CONFLICT`, если домен неактивен.
+   */
+  rebootDomain(selector: DomainSelector, options?: OperationOptions): Promise<DomainSummary>;
+  /**
+   * Закрывает соединение и native host. Метод идемпотентен.
+   * @returns Promise, завершающийся после закрытия клиента.
+   */
   close(): Promise<void>;
 }
 
+/** Стабильные машинно-читаемые категории ошибок адаптера. */
 export type LibvirtAdapterErrorCode =
   | "INITIALIZATION_FAILED"
   | "HOST_ERROR"
@@ -62,11 +175,20 @@ export type LibvirtAdapterErrorCode =
   | "NOT_FOUND"
   | "CONFLICT"
   | "INVALID_DEFINITION"
+  | "CANCELLED"
+  | "TIMEOUT"
   | "CLOSED_CLIENT";
 
+/** Ошибка адаптера с машинно-читаемым кодом в поле `code`. */
 export class LibvirtAdapterError extends Error {
+  /** Стабильная категория ошибки, пригодная для ветвления в приложении. */
   readonly code: LibvirtAdapterErrorCode;
 
+  /**
+   * @param code Стабильная категория ошибки.
+   * @param message Диагностическое сообщение.
+   * @param options Стандартный `ErrorOptions`, например исходная причина ошибки.
+   */
   constructor(code: LibvirtAdapterErrorCode, message: string, options?: ErrorOptions) {
     super(message, options);
     this.name = "LibvirtAdapterError";
@@ -74,17 +196,25 @@ export class LibvirtAdapterError extends Error {
   }
 }
 
+/**
+ * Загружает WASM-контракт, запускает native host и открывает соединение libvirt.
+ * @param options URI и default timeout нового клиента.
+ * @returns Готовый к операциям клиент.
+ * @throws `INITIALIZATION_FAILED`, если не удалось запустить host или открыть URI.
+ */
 export async function createLibvirtClient(
   options: CreateLibvirtClientOptions = {},
 ): Promise<LibvirtClient> {
   const uri = normalizeUri(options.uri ?? "qemu:///system");
+  const defaultTimeoutMs = validateTimeout(options.defaultTimeoutMs);
   await loadWasmContract();
 
-  return HostClient.start(uri);
+  return HostClient.start(uri, defaultTimeoutMs);
 }
 
 class HostClient implements LibvirtClient {
   readonly #child: ChildProcessWithoutNullStreams;
+  readonly #defaultTimeoutMs: number | undefined;
   readonly #lines: ReadlineInterface;
   readonly #pending = new Map<
     number,
@@ -96,9 +226,11 @@ class HostClient implements LibvirtClient {
   private constructor(
     child: ChildProcessWithoutNullStreams,
     lines: ReadlineInterface,
+    defaultTimeoutMs: number | undefined,
   ) {
     this.#child = child;
     this.#lines = lines;
+    this.#defaultTimeoutMs = defaultTimeoutMs;
 
     lines.on("line", (line) => this.#handleLine(line));
     child.once("exit", (code, signal) => {
@@ -113,7 +245,10 @@ class HostClient implements LibvirtClient {
     });
   }
 
-  static async start(uri: string): Promise<HostClient> {
+  static async start(
+    uri: string,
+    defaultTimeoutMs: number | undefined,
+  ): Promise<HostClient> {
     const hostPath = fileURLToPath(new URL("../native/wasm-libvirt-host", import.meta.url));
     const child = spawn(hostPath, ["--uri", uri], { stdio: ["pipe", "pipe", "pipe"] });
     const lines = createInterface({ input: child.stdout });
@@ -126,7 +261,7 @@ class HostClient implements LibvirtClient {
     try {
       const ready = await waitForReady(child, lines, () => stderr);
       if (ready.type !== "ready") throw new Error("native host returned an invalid greeting");
-      return new HostClient(child, lines);
+      return new HostClient(child, lines, defaultTimeoutMs);
     } catch (error) {
       child.kill();
       lines.close();
@@ -138,31 +273,33 @@ class HostClient implements LibvirtClient {
     }
   }
 
-  async health(): Promise<LibvirtHealth> {
-    return (await this.#request("health")) as LibvirtHealth;
+  async health(options?: OperationOptions): Promise<LibvirtHealth> {
+    return (await this.#request("health", undefined, options)) as LibvirtHealth;
   }
 
-  async listDomains(): Promise<DomainSummary[]> {
-    return (await this.#request("list-domains")) as DomainSummary[];
+  async listDomains(options?: OperationOptions): Promise<DomainSummary[]> {
+    return (await this.#request("list-domains", undefined, options)) as DomainSummary[];
   }
 
-  async getDomain(selector: DomainSelector): Promise<DomainSummary> {
-    if ("uuid" in selector) {
-      return (await this.#request("get-domain-by-uuid", selector.uuid)) as DomainSummary;
+  async getDomain(selector: DomainSelector, options?: OperationOptions): Promise<DomainSummary> {
+    const validated = validateDomainSelector(selector);
+    if (validated.kind === "uuid") {
+      return (await this.#request("get-domain-by-uuid", validated.value, options)) as DomainSummary;
     }
 
-    return (await this.#request("get-domain-by-name", selector.name)) as DomainSummary;
+    return (await this.#request("get-domain-by-name", validated.value, options)) as DomainSummary;
   }
 
-  async getDomainXml(selector: DomainSelector): Promise<string> {
-    if ("uuid" in selector) {
-      return (await this.#request("get-domain-xml-by-uuid", selector.uuid)) as string;
+  async getDomainXml(selector: DomainSelector, options?: OperationOptions): Promise<string> {
+    const validated = validateDomainSelector(selector);
+    if (validated.kind === "uuid") {
+      return (await this.#request("get-domain-xml-by-uuid", validated.value, options)) as string;
     }
 
-    return (await this.#request("get-domain-xml-by-name", selector.name)) as string;
+    return (await this.#request("get-domain-xml-by-name", validated.value, options)) as string;
   }
 
-  async defineDomain(xml: string): Promise<DomainSummary> {
+  async defineDomain(xml: string, options?: OperationOptions): Promise<DomainSummary> {
     if (xml.includes("\0")) {
       throw new LibvirtAdapterError(
         "INVALID_ARGUMENT",
@@ -171,74 +308,129 @@ class HostClient implements LibvirtClient {
     }
 
     const encodedXml = Buffer.from(xml, "utf8").toString("hex");
-    return (await this.#request("define-domain", encodedXml)) as DomainSummary;
+    return (await this.#request("define-domain", encodedXml, options)) as DomainSummary;
   }
 
-  async undefineDomain(selector: DomainSelector): Promise<void> {
-    if ("uuid" in selector) {
-      await this.#request("undefine-domain-by-uuid", selector.uuid);
+  async undefineDomain(selector: DomainSelector, options?: OperationOptions): Promise<void> {
+    const validated = validateDomainSelector(selector);
+    if (validated.kind === "uuid") {
+      await this.#request("undefine-domain-by-uuid", validated.value, options);
       return;
     }
 
-    await this.#request("undefine-domain-by-name", selector.name);
+    await this.#request("undefine-domain-by-name", validated.value, options);
   }
 
-  async startDomain(selector: DomainSelector): Promise<DomainSummary> {
-    if ("uuid" in selector) {
-      return (await this.#request("start-domain-by-uuid", selector.uuid)) as DomainSummary;
+  async startDomain(selector: DomainSelector, options?: OperationOptions): Promise<DomainSummary> {
+    const validated = validateDomainSelector(selector);
+    if (validated.kind === "uuid") {
+      return (await this.#request("start-domain-by-uuid", validated.value, options)) as DomainSummary;
     }
 
-    return (await this.#request("start-domain-by-name", selector.name)) as DomainSummary;
+    return (await this.#request("start-domain-by-name", validated.value, options)) as DomainSummary;
   }
 
-  async shutdownDomain(selector: DomainSelector): Promise<DomainSummary> {
-    if ("uuid" in selector) {
-      return (await this.#request("shutdown-domain-by-uuid", selector.uuid)) as DomainSummary;
+  async shutdownDomain(selector: DomainSelector, options?: OperationOptions): Promise<DomainSummary> {
+    const validated = validateDomainSelector(selector);
+    if (validated.kind === "uuid") {
+      return (await this.#request("shutdown-domain-by-uuid", validated.value, options)) as DomainSummary;
     }
 
-    return (await this.#request("shutdown-domain-by-name", selector.name)) as DomainSummary;
+    return (await this.#request("shutdown-domain-by-name", validated.value, options)) as DomainSummary;
   }
 
-  async destroyDomain(selector: DomainSelector): Promise<DomainSummary> {
-    if ("uuid" in selector) {
-      return (await this.#request("destroy-domain-by-uuid", selector.uuid)) as DomainSummary;
+  async destroyDomain(selector: DomainSelector, options?: OperationOptions): Promise<DomainSummary> {
+    const validated = validateDomainSelector(selector);
+    if (validated.kind === "uuid") {
+      return (await this.#request("destroy-domain-by-uuid", validated.value, options)) as DomainSummary;
     }
 
-    return (await this.#request("destroy-domain-by-name", selector.name)) as DomainSummary;
+    return (await this.#request("destroy-domain-by-name", validated.value, options)) as DomainSummary;
   }
 
-  async rebootDomain(selector: DomainSelector): Promise<DomainSummary> {
-    if ("uuid" in selector) {
-      return (await this.#request("reboot-domain-by-uuid", selector.uuid)) as DomainSummary;
+  async rebootDomain(selector: DomainSelector, options?: OperationOptions): Promise<DomainSummary> {
+    const validated = validateDomainSelector(selector);
+    if (validated.kind === "uuid") {
+      return (await this.#request("reboot-domain-by-uuid", validated.value, options)) as DomainSummary;
     }
 
-    return (await this.#request("reboot-domain-by-name", selector.name)) as DomainSummary;
+    return (await this.#request("reboot-domain-by-name", validated.value, options)) as DomainSummary;
   }
 
   async close(): Promise<void> {
     if (this.#closed) return;
-    await this.#request("close");
+    await this.#request("close", undefined, undefined, false);
     this.#closed = true;
     this.#lines.close();
   }
 
-  #request(operation: string, argument?: string): Promise<unknown> {
+  #request(
+    operation: string,
+    argument?: string,
+    options: OperationOptions = {},
+    useDefaultTimeout = true,
+  ): Promise<unknown> {
     if (this.#closed) {
       return Promise.reject(
         new LibvirtAdapterError("CLOSED_CLIENT", "libvirt client is closed"),
       );
     }
 
+    if (options.signal?.aborted) {
+      return Promise.reject(
+        new LibvirtAdapterError("CANCELLED", `libvirt operation ${operation} was cancelled`),
+      );
+    }
+
+    const timeoutMs = validateTimeout(
+      options.timeoutMs ?? (useDefaultTimeout ? this.#defaultTimeoutMs : undefined),
+    );
     const id = this.#nextId++;
     return new Promise((resolve, reject) => {
-      this.#pending.set(id, { resolve, reject });
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      const onAbort = () => {
+        if (!this.#pending.delete(id)) return;
+        cleanup();
+        reject(
+          new LibvirtAdapterError(
+            "CANCELLED",
+            `libvirt operation ${operation} was cancelled`,
+          ),
+        );
+      };
+      const onTimeout = () => {
+        if (!this.#pending.delete(id)) return;
+        cleanup();
+        reject(
+          new LibvirtAdapterError(
+            "TIMEOUT",
+            `libvirt operation ${operation} timed out after ${timeoutMs} ms`,
+          ),
+        );
+      };
+      const cleanup = () => {
+        options.signal?.removeEventListener("abort", onAbort);
+        if (timeout !== undefined) clearTimeout(timeout);
+      };
+      const resolvePending = (value: unknown) => {
+        cleanup();
+        resolve(value);
+      };
+      const rejectPending = (error: Error) => {
+        cleanup();
+        reject(error);
+      };
+
+      options.signal?.addEventListener("abort", onAbort, { once: true });
+      this.#pending.set(id, { resolve: resolvePending, reject: rejectPending });
+      if (timeoutMs !== undefined) timeout = setTimeout(onTimeout, timeoutMs);
       const request = argument === undefined
         ? `${id}\t${operation}\n`
         : `${id}\t${operation}\t${argument}\n`;
       this.#child.stdin.write(request, (error) => {
         if (!error) return;
-        this.#pending.delete(id);
-        reject(new LibvirtAdapterError("HOST_ERROR", error.message, { cause: error }));
+        if (!this.#pending.delete(id)) return;
+        rejectPending(new LibvirtAdapterError("HOST_ERROR", error.message, { cause: error }));
       });
     });
   }
@@ -300,6 +492,49 @@ function normalizeUri(uri: string): string {
     );
   }
   return normalized;
+}
+
+function validateDomainSelector(
+  selector: DomainSelector,
+): { kind: "name" | "uuid"; value: string } {
+  if (typeof selector !== "object" || selector === null) {
+    throw new LibvirtAdapterError("INVALID_ARGUMENT", "domain selector must be an object");
+  }
+
+  const hasName = Object.prototype.hasOwnProperty.call(selector, "name");
+  const hasUuid = Object.prototype.hasOwnProperty.call(selector, "uuid");
+  if (hasName === hasUuid) {
+    throw new LibvirtAdapterError(
+      "INVALID_ARGUMENT",
+      "domain selector must contain exactly one of name or uuid",
+    );
+  }
+
+  const kind = hasUuid ? "uuid" : "name";
+  const value = (selector as unknown as Record<string, unknown>)[kind];
+  if (
+    typeof value !== "string" ||
+    value.trim().length === 0 ||
+    /[\0\t\r\n]/.test(value)
+  ) {
+    throw new LibvirtAdapterError(
+      "INVALID_ARGUMENT",
+      `domain ${kind} must be a non-empty single-line string`,
+    );
+  }
+
+  return { kind, value };
+}
+
+function validateTimeout(timeoutMs: number | undefined): number | undefined {
+  if (timeoutMs === undefined) return undefined;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new LibvirtAdapterError(
+      "INVALID_ARGUMENT",
+      "operation timeoutMs must be a positive finite number",
+    );
+  }
+  return timeoutMs;
 }
 
 function waitForReady(

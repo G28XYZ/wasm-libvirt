@@ -17,6 +17,12 @@
     "wasm",
     "README.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "prepublishOnly": "node ../../scripts/release-check.mjs"
+  },
   "engines": {
     "node": ">=20"
   },

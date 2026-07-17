@@ -396,3 +396,114 @@ test("undefining a missing domain produces a stable not-found error", async () =
     await client.close();
   }
 });
+
+test("a domain selector cannot inject native-host protocol lines", async () => {
+  const client = await createLibvirtClient({ uri: "test:///default" });
+
+  try {
+    await assert.rejects(
+      client.getDomain({ name: "test\n2\thealth" }),
+      (error) => error instanceof LibvirtAdapterError && error.code === "INVALID_ARGUMENT",
+    );
+  } finally {
+    await client.close();
+  }
+});
+
+test("a domain selector requires exactly one identifier", async () => {
+  const client = await createLibvirtClient({ uri: "test:///default" });
+
+  try {
+    await assert.rejects(
+      client.getDomain({
+        name: "test",
+        uuid: "6695eb01-f6a4-8304-79aa-97f2502e193f",
+      }),
+      (error) => error instanceof LibvirtAdapterError && error.code === "INVALID_ARGUMENT",
+    );
+  } finally {
+    await client.close();
+  }
+});
+
+test("an operation with an already aborted signal is cancelled", async () => {
+  const client = await createLibvirtClient({ uri: "test:///default" });
+  const controller = new AbortController();
+  controller.abort();
+
+  try {
+    await assert.rejects(
+      client.health({ signal: controller.signal }),
+      (error) => error instanceof LibvirtAdapterError && error.code === "CANCELLED",
+    );
+  } finally {
+    await client.close();
+  }
+});
+
+test("an in-flight operation stops waiting when its signal is aborted", async () => {
+  const client = await createLibvirtClient({ uri: "test:///default" });
+  const controller = new AbortController();
+
+  try {
+    const operation = client.health({ signal: controller.signal });
+    controller.abort();
+    await assert.rejects(
+      operation,
+      (error) => error instanceof LibvirtAdapterError && error.code === "CANCELLED",
+    );
+  } finally {
+    await client.close();
+  }
+});
+
+test("an operation stops waiting after its timeout", async () => {
+  const client = await createLibvirtClient({ uri: "test:///default" });
+  const backlog = Array.from({ length: 5_000 }, () => client.health());
+
+  try {
+    await assert.rejects(
+      client.health({ timeoutMs: 1 }),
+      (error) => error instanceof LibvirtAdapterError && error.code === "TIMEOUT",
+    );
+    await Promise.all(backlog);
+  } finally {
+    await client.close();
+  }
+});
+
+test("a client applies its default operation timeout", async () => {
+  const client = await createLibvirtClient({
+    uri: "test:///default",
+    defaultTimeoutMs: 1,
+  });
+  const backlog = Array.from(
+    { length: 5_000 },
+    () => client.health({ timeoutMs: 10_000 }),
+  );
+
+  try {
+    await assert.rejects(
+      client.health(),
+      (error) => error instanceof LibvirtAdapterError && error.code === "TIMEOUT",
+    );
+    await Promise.all(backlog);
+  } finally {
+    await client.close();
+  }
+});
+
+test("domain operations accept cancellation options", async () => {
+  const client = await createLibvirtClient({ uri: "test:///default" });
+  const controller = new AbortController();
+  controller.abort();
+
+  try {
+    await assert.rejects(
+      client.getDomain({ name: "test" }, { signal: controller.signal }),
+      (error) => error instanceof LibvirtAdapterError && error.code === "CANCELLED",
+    );
+  } finally {
+    await client.close();
+  }
+});

@@ -1,37 +1,66 @@
-# `@wasm-libvirt/adapter`
+## Быстрый старт
 
-Early vertical slice of the TypeScript adapter described in the project spec.
+Требуется Node.js 20+ и системная библиотека libvirt. После публикации пакета
+установите его в TypeScript-проект:
 
-The current interface initializes the packaged WASM contract, opens a native
-`virt` host connection, reports connection health, reads domain summaries and
-XML, defines persistent domains, starts, reboots, gracefully shuts down, and
-forcibly stops or undefines domains, then closes deterministically. Only Node.js
-on Linux and the local development build on macOS are currently being exercised.
+```sh
+npm install @wasm-libvirt/adapter
+```
 
 ```ts
 import { createLibvirtClient } from "@wasm-libvirt/adapter";
 
-const client = await createLibvirtClient({ uri: "test:///default" });
-console.log(await client.health());
-console.log(await client.listDomains());
-console.log(await client.getDomain({ name: "test" }));
-console.log(await client.getDomainXml({ name: "test" }));
-console.log(await client.defineDomain("<domain>...</domain>"));
-console.log(await client.startDomain({ uuid: "domain-uuid" }));
-console.log(await client.rebootDomain({ name: "test" }));
-console.log(await client.shutdownDomain({ name: "test" }));
-console.log(await client.destroyDomain({ name: "test" }));
-await client.undefineDomain({ name: "test" });
-await client.close();
+const client = await createLibvirtClient({
+  uri: "qemu:///system",
+  defaultTimeoutMs: 5_000,
+});
+
+try {
+  const domains = await client.listDomains();
+  console.log(domains);
+
+  const domain = await client.getDomain({ name: "my-vm" });
+  await client.startDomain({ uuid: domain.uuid });
+} finally {
+  await client.close();
+}
 ```
 
-Domain operations accept either `{ name }` or `{ uuid }`. Lifecycle operations
-return a normalized current domain state; `getDomainXml` returns the XML string
-from libvirt. A missing domain rejects with `LibvirtAdapterError` code
-`NOT_FOUND`; starting an active domain, or rebooting/stopping an inactive domain,
-rejects with code `CONFLICT`. Invalid domain XML rejects with
-`INVALID_DEFINITION`; an embedded NUL byte is rejected before FFI with
-`INVALID_ARGUMENT`.
+Для локальной проверки без гипервизора используйте URI `test:///default`.
 
-`undefineDomain` returns `Promise<void>` and removes only the persistent libvirt
-definition. It does not claim to delete domain storage.
+| Метод | Назначение |
+| --- | --- |
+| `health()` | Проверить соединение с libvirt. |
+| `listDomains()` | Получить список доменов. |
+| `getDomain(selector)` | Найти домен по `{ name }` или `{ uuid }`. |
+| `getDomainXml(selector)` | Получить XML домена. |
+| `defineDomain(xml)` | Создать или обновить persistent-домен из XML. |
+| `startDomain(selector)` | Запустить выключенный домен. |
+| `rebootDomain(selector)` | Перезагрузить работающий домен. |
+| `shutdownDomain(selector)` | Запросить мягкое выключение. |
+| `destroyDomain(selector)` | Принудительно остановить домен. |
+| `undefineDomain(selector)` | Удалить persistent-определение без удаления storage. |
+| `close()` | Закрыть клиент; вызывайте в `finally`. |
+
+Все операции, кроме `close()`, принимают необязательный второй аргумент:
+`{ timeoutMs, signal }`. Типичные коды `LibvirtAdapterError`: `NOT_FOUND`,
+`CONFLICT`, `INVALID_ARGUMENT`, `INVALID_DEFINITION`, `TIMEOUT`, `CANCELLED`.
+
+## Публикация пакета
+
+В корне workspace задайте версию, войдите в npm и выполните dry-run:
+
+```sh
+npm --prefix packages/libvirt-adapter version 0.1.0
+npm login
+npm run release:dry-run
+```
+
+Если проверка успешна, публикация выполняется командой:
+
+```sh
+npm run release:publish
+```
+
+`release:check` запускает сборку и integration-тесты, затем проверяет состав
+будущего tarball. Скрипты не позволяют публиковать служебную версию `0.0.0`.

@@ -1,6 +1,6 @@
 {
   "name": "wasm-libvirt",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "TypeScript adapter for libvirt backed by Rust/WASM and virt",
   "type": "module",
   "main": "./dist/index.js",

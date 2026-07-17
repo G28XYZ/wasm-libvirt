@@ -1,11 +1,14 @@
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const workspaceRoot = fileURLToPath(new URL("../", import.meta.url));
 const packageDirectory = fileURLToPath(
   new URL("../packages/libvirt-adapter/", import.meta.url),
 );
+const npmCacheDirectory = join(tmpdir(), "wasm-libvirt-npm-cache");
 const packageJson = JSON.parse(
   await readFile(new URL("../packages/libvirt-adapter/package.json", import.meta.url), "utf8"),
 );
@@ -14,7 +17,11 @@ assertPublishableVersion(packageJson.version);
 run("npm", ["run", "check"], workspaceRoot);
 
 const packed = JSON.parse(
-  runCapture("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], packageDirectory),
+  runCapture(
+    "npm",
+    ["pack", "--dry-run", "--json", "--ignore-scripts", "--cache", npmCacheDirectory],
+    packageDirectory,
+  ),
 );
 if (!Array.isArray(packed) || packed.length !== 1) {
   throw new Error("npm pack did not return exactly one package manifest");

@@ -12,9 +12,7 @@
     "release:dry-run:native": "npm run release:check && node scripts/publish-native.mjs --dry-run",
     "release:publish:native": "npm run release:check && node scripts/publish-native.mjs",
     "release:dry-run": "npm run release:check && npm publish ./packages/libvirt-adapter --access public --dry-run",
-    "release:publish": "npm run release:check && npm publish ./packages/libvirt-adapter --access public",
-    "prototype:feasibility": "node prototypes/virt-wasm-feasibility/runner.mjs --all",
-    "prototype:feasibility:interactive": "node prototypes/virt-wasm-feasibility/runner.mjs"
+    "release:publish": "npm run release:check && npm publish ./packages/libvirt-adapter --access public"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -1,6 +1,5 @@
 [workspace]
 members = ["crates/wasm-core", "crates/native-host"]
-exclude = ["prototypes/virt-wasm-feasibility"]
 resolver = "2"
 
 [workspace.package]

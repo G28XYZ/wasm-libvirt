@@ -4,11 +4,11 @@
 установите его в TypeScript-проект:
 
 ```sh
-npm install @wasm-libvirt/adapter
+npm install wasm-libvirt
 ```
 
 ```ts
-import { createLibvirtClient } from "@wasm-libvirt/adapter";
+import { createLibvirtClient } from "wasm-libvirt";
 
 const client = await createLibvirtClient({
   uri: "qemu:///system",

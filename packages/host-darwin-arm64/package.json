@@ -1,6 +1,6 @@
 {
   "name": "wasm-libvirt-host-darwin-arm64",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "description": "Native libvirt host for wasm-libvirt on macOS ARM64",
   "type": "module",
   "main": "./index.js",

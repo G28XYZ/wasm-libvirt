@@ -1,6 +1,6 @@
 {
   "name": "wasm-libvirt",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "description": "TypeScript adapter for libvirt backed by Rust/WASM and virt",
   "type": "module",
   "main": "./dist/index.js",
@@ -17,9 +17,9 @@
     "README.md"
   ],
   "optionalDependencies": {
-    "wasm-libvirt-host-darwin-arm64": "0.1.2",
-    "wasm-libvirt-host-linux-arm64": "0.1.2",
-    "wasm-libvirt-host-linux-x64": "0.1.2"
+    "wasm-libvirt-host-darwin-arm64": "0.1.4",
+    "wasm-libvirt-host-linux-arm64": "0.1.4",
+    "wasm-libvirt-host-linux-x64": "0.1.4"
   },
   "publishConfig": {
     "access": "public"

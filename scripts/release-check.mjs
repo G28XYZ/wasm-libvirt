@@ -9,7 +9,7 @@ const workspaceRoot = fileURLToPath(new URL("../", import.meta.url));
 const packageDirectory = fileURLToPath(
   new URL("../packages/libvirt-adapter/", import.meta.url),
 );
-const npmCacheDirectory = join(tmpdir(), "wasm-libvirt-npm-cache");
+const npmCacheDirectory = join(tmpdir(), "ts-wasm-libvirt-npm-cache");
 const packageJson = JSON.parse(
   await readFile(new URL("../packages/libvirt-adapter/package.json", import.meta.url), "utf8"),
 );
@@ -65,10 +65,10 @@ async function assertPlatformPackageVersions(corePackage) {
       throw new Error(`${hostPackage.name} must declare its matching os and cpu`);
     }
     if (hostManifest.version !== corePackage.version) {
-      throw new Error(`${hostPackage.name} version must match wasm-libvirt`);
+      throw new Error(`${hostPackage.name} version must match ts-wasm-libvirt`);
     }
     if (corePackage.optionalDependencies?.[hostPackage.name] !== corePackage.version) {
-      throw new Error(`wasm-libvirt must pin ${hostPackage.name} to its own version`);
+      throw new Error(`ts-wasm-libvirt must pin ${hostPackage.name} to its own version`);
     }
   }
 }

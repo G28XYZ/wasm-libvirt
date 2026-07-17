@@ -471,9 +471,9 @@ interface HostResponse {
 }
 
 const HOST_PACKAGES: Readonly<Record<string, string>> = {
-  "darwin-arm64": "wasm-libvirt-host-darwin-arm64",
-  "linux-arm64": "wasm-libvirt-host-linux-arm64",
-  "linux-x64": "wasm-libvirt-host-linux-x64",
+  "darwin-arm64": "ts-wasm-libvirt-host-darwin-arm64",
+  "linux-arm64": "ts-wasm-libvirt-host-linux-arm64",
+  "linux-x64": "ts-wasm-libvirt-host-linux-x64",
 };
 
 /**
@@ -499,7 +499,7 @@ async function resolveNativeHostPath(): Promise<string> {
   } catch (error) {
     throw new LibvirtAdapterError(
       "INITIALIZATION_FAILED",
-      `native host package ${packageName} is unavailable for ${platform}; reinstall wasm-libvirt`,
+      `native host package ${packageName} is unavailable for ${platform}; reinstall ts-wasm-libvirt`,
       { cause: error },
     );
   }

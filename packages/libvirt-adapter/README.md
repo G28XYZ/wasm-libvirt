@@ -3,11 +3,11 @@
 Требуется Node.js 20+ и системная библиотека libvirt.
 
 ```sh
-npm install wasm-libvirt
+npm install ts-wasm-libvirt
 ```
 
 ```ts
-import { createLibvirtClient } from "wasm-libvirt";
+import { createLibvirtClient } from "ts-wasm-libvirt";
 
 const client = await createLibvirtClient({
   uri: "qemu:///system",

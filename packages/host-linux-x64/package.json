@@ -1,7 +1,7 @@
 {
-  "name": "wasm-libvirt-host-linux-x64",
-  "version": "0.1.4",
-  "description": "Native libvirt host for wasm-libvirt on Linux x64",
+  "name": "ts-wasm-libvirt-host-linux-x64",
+  "version": "0.1.5",
+  "description": "Native libvirt host for ts-wasm-libvirt on Linux x64",
   "type": "module",
   "main": "./index.js",
   "types": "./index.d.ts",

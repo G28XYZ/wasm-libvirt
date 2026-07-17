@@ -1,14 +1,14 @@
-# wasm-libvirt
+# ts-wasm-libvirt
 
 TypeScript-адаптер для управления libvirt. Публичный пакет:
-[wasm-libvirt на npm](https://www.npmjs.com/package/wasm-libvirt).
+[ts-wasm-libvirt на npm](https://www.npmjs.com/package/ts-wasm-libvirt).
 
 ```sh
-npm install wasm-libvirt
+npm install ts-wasm-libvirt
 ```
 
 ```ts
-import { createLibvirtClient } from "wasm-libvirt";
+import { createLibvirtClient } from "ts-wasm-libvirt";
 
 const client = await createLibvirtClient({ uri: "qemu:///system" });
 try {
@@ -24,4 +24,11 @@ try {
 
 ```sh
 npm run check
+```
+
+Перед публикацией обновите все publishable-пакеты одной командой:
+
+```sh
+npm run version:bump -- patch
+# или: npm run version:bump -- 0.2.0
 ```

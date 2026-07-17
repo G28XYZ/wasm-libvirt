@@ -1,5 +1,5 @@
 {
-  "name": "wasm-libvirt-workspace",
+  "name": "ts-wasm-libvirt-workspace",
   "private": true,
   "type": "module",
   "version": "0.1.0",
@@ -7,6 +7,7 @@
     "build": "node scripts/build.mjs",
     "test": "node --test packages/libvirt-adapter/test/*.test.mjs",
     "check": "npm run build && npm test",
+    "version:bump": "node scripts/version-bump.mjs",
     "release:check": "node scripts/release-check.mjs",
     "release:dry-run:native": "npm run release:check && node scripts/publish-native.mjs --dry-run",
     "release:publish:native": "npm run release:check && node scripts/publish-native.mjs",

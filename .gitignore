@@ -1,5 +1,7 @@
 /target/
 /packages/libvirt-adapter/dist/
+/packages/host-*/wasm-libvirt-host
+/packages/libvirt-adapter/node_modules/
 /packages/libvirt-adapter/native/
 /packages/libvirt-adapter/wasm/
 /prototypes/virt-wasm-feasibility/target/

@@ -1,7 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { createInterface, type Interface as ReadlineInterface } from "node:readline";
-import { fileURLToPath } from "node:url";
 
 /** Параметры создания клиента libvirt. */
 export interface CreateLibvirtClientOptions {
@@ -200,7 +199,8 @@ export class LibvirtAdapterError extends Error {
  * Загружает WASM-контракт, запускает native host и открывает соединение libvirt.
  * @param options URI и default timeout нового клиента.
  * @returns Готовый к операциям клиент.
- * @throws `INITIALIZATION_FAILED`, если не удалось запустить host или открыть URI.
+ * @throws `INITIALIZATION_FAILED`, если для текущей платформы нет host-пакета,
+ * не удалось запустить host или открыть URI.
  */
 export async function createLibvirtClient(
   options: CreateLibvirtClientOptions = {},
@@ -208,8 +208,9 @@ export async function createLibvirtClient(
   const uri = normalizeUri(options.uri ?? "qemu:///system");
   const defaultTimeoutMs = validateTimeout(options.defaultTimeoutMs);
   await loadWasmContract();
+  const hostPath = await resolveNativeHostPath();
 
-  return HostClient.start(uri, defaultTimeoutMs);
+  return HostClient.start(uri, defaultTimeoutMs, hostPath);
 }
 
 class HostClient implements LibvirtClient {
@@ -248,8 +249,8 @@ class HostClient implements LibvirtClient {
   static async start(
     uri: string,
     defaultTimeoutMs: number | undefined,
+    hostPath: string,
   ): Promise<HostClient> {
-    const hostPath = fileURLToPath(new URL("../native/wasm-libvirt-host", import.meta.url));
     const child = spawn(hostPath, ["--uri", uri], { stdio: ["pipe", "pipe", "pipe"] });
     const lines = createInterface({ input: child.stdout });
     let stderr = "";
@@ -467,6 +468,41 @@ interface HostResponse {
   result?: unknown;
   code?: string;
   error: string;
+}
+
+const HOST_PACKAGES: Readonly<Record<string, string>> = {
+  "darwin-arm64": "wasm-libvirt-host-darwin-arm64",
+  "linux-arm64": "wasm-libvirt-host-linux-arm64",
+  "linux-x64": "wasm-libvirt-host-linux-x64",
+};
+
+/**
+ * Находит установленный optional dependency с host для текущей платформы.
+ * Платформенные пакеты намеренно скрыты от публичного API адаптера.
+ */
+async function resolveNativeHostPath(): Promise<string> {
+  const platform = `${process.platform}-${process.arch}`;
+  const packageName = HOST_PACKAGES[platform];
+  if (packageName === undefined) {
+    throw new LibvirtAdapterError(
+      "INITIALIZATION_FAILED",
+      `unsupported native host platform: ${platform}`,
+    );
+  }
+
+  try {
+    const runtime = await import(packageName) as { nativeHostPath?: unknown };
+    if (typeof runtime.nativeHostPath !== "string" || runtime.nativeHostPath.length === 0) {
+      throw new Error("native host package does not export nativeHostPath");
+    }
+    return runtime.nativeHostPath;
+  } catch (error) {
+    throw new LibvirtAdapterError(
+      "INITIALIZATION_FAILED",
+      `native host package ${packageName} is unavailable for ${platform}; reinstall wasm-libvirt`,
+      { cause: error },
+    );
+  }
 }
 
 async function loadWasmContract(): Promise<void> {

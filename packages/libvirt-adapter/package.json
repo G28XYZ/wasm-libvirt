@@ -13,10 +13,14 @@
   },
   "files": [
     "dist",
-    "native",
     "wasm",
     "README.md"
   ],
+  "optionalDependencies": {
+    "wasm-libvirt-host-darwin-arm64": "0.1.2",
+    "wasm-libvirt-host-linux-arm64": "0.1.2",
+    "wasm-libvirt-host-linux-x64": "0.1.2"
+  },
   "publishConfig": {
     "access": "public"
   },

@@ -1,0 +1,32 @@
+{
+  "name": "wasm-libvirt-host-linux-x64",
+  "version": "0.1.2",
+  "description": "Native libvirt host for wasm-libvirt on Linux x64",
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    }
+  },
+  "files": [
+    "index.d.ts",
+    "index.js",
+    "wasm-libvirt-host"
+  ],
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

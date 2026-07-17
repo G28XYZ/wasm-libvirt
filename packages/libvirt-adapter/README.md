@@ -45,22 +45,3 @@ try {
 Все операции, кроме `close()`, принимают необязательный второй аргумент:
 `{ timeoutMs, signal }`. Типичные коды `LibvirtAdapterError`: `NOT_FOUND`,
 `CONFLICT`, `INVALID_ARGUMENT`, `INVALID_DEFINITION`, `TIMEOUT`, `CANCELLED`.
-
-## Публикация пакета
-
-В корне workspace задайте версию, войдите в npm и выполните dry-run:
-
-```sh
-npm --prefix packages/libvirt-adapter version 0.1.0
-npm login
-npm run release:dry-run
-```
-
-Если проверка успешна, публикация выполняется командой:
-
-```sh
-npm run release:publish
-```
-
-`release:check` запускает сборку и integration-тесты, затем проверяет состав
-будущего tarball. Скрипты не позволяют публиковать служебную версию `0.0.0`.

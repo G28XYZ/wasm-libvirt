@@ -1,6 +1,6 @@
 {
   "name": "ts-wasm-libvirt-host-linux-arm64",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Native libvirt host for ts-wasm-libvirt on Linux ARM64",
   "type": "module",
   "main": "./index.js",

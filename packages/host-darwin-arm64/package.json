@@ -1,6 +1,6 @@
 {
   "name": "ts-wasm-libvirt-host-darwin-arm64",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Native libvirt host for ts-wasm-libvirt on macOS ARM64",
   "type": "module",
   "main": "./index.js",

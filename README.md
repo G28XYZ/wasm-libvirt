@@ -1,34 +1,15 @@
 # ts-wasm-libvirt
 
-TypeScript-адаптер для управления libvirt. Публичный пакет:
-[ts-wasm-libvirt на npm](https://www.npmjs.com/package/ts-wasm-libvirt).
+## Установка и зависимости
+
+Нужны Node.js 20+ и системная библиотека libvirt. Для работы с локальным QEMU необходим запущенный демон libvirt и доступ пользователя к его сокету.
+
+Debian/Ubuntu:
 
 ```sh
+sudo apt install libvirt0 libvirt-daemon-system
 npm install ts-wasm-libvirt
 ```
 
-```ts
-import { createLibvirtClient } from "ts-wasm-libvirt";
+Полный интерактивный каталог возможностей и примеров: [README публичного пакета](packages/libvirt-adapter/README.md).
 
-const client = await createLibvirtClient({ uri: "qemu:///system" });
-try {
-  console.log(await client.listDomains());
-} finally {
-  await client.close();
-}
-```
-
-Полная документация API и публикации: [packages/libvirt-adapter/README.md](packages/libvirt-adapter/README.md).
-
-Для разработки:
-
-```sh
-npm run check
-```
-
-Перед публикацией обновите все publishable-пакеты одной командой:
-
-```sh
-npm run version:bump -- patch
-# или: npm run version:bump -- 0.2.0
-```

@@ -6,7 +6,9 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node --test packages/libvirt-adapter/test/*.test.mjs",
-    "check": "npm run build && npm test",
+    "check": "npm run lint && npm run build && npm run check:jsdoc && npm test",
+    "check:jsdoc": "node scripts/check-jsdoc.mjs",
+    "lint": "eslint . --max-warnings 0",
     "version:bump": "node scripts/version-bump.mjs",
     "release:check": "node scripts/release-check.mjs",
     "release:dry-run:native": "npm run release:check && node scripts/publish-native.mjs --dry-run",
@@ -15,7 +17,12 @@
     "release:publish": "npm run release:check && npm publish ./packages/libvirt-adapter --access public"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@types/node": "^22.0.0",
-    "typescript": "^5.3.3"
+    "eslint": "^9.39.5",
+    "eslint-plugin-jsdoc": "^61.7.1",
+    "globals": "^17.7.0",
+    "typescript": "^5.3.3",
+    "typescript-eslint": "^8.64.0"
   }
 }

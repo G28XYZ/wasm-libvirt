@@ -4,6 +4,10 @@ use std::io::{self, BufRead, Write};
 use virt::connect::Connect;
 use virt::error::{Error as VirtError, ErrorNumber};
 
+mod auth;
+mod binary;
+mod resources;
+
 fn main() {
     if let Err(error) = run() {
         eprintln!("{error}");
@@ -12,8 +16,23 @@ fn main() {
 }
 
 fn run() -> Result<(), String> {
-    let uri = parse_uri()?;
-    let mut connection = Connect::open(Some(&uri)).map_err(|error| error.to_string())?;
+    let HostOptions {
+        uri,
+        read_only,
+        binary_transport,
+        auth_types,
+    } = parse_options()?;
+    let mut connection = if let Some(auth_types) = auth_types {
+        auth::open(&uri, auth_types, u32::from(read_only))
+    } else if read_only {
+        Connect::open_read_only(Some(&uri)).map_err(|error| error.to_string())
+    } else {
+        Connect::open(Some(&uri)).map_err(|error| error.to_string())
+    }?;
+
+    if binary_transport {
+        binary::start(connection.clone())?;
+    }
 
     write_line(&format!(
         "{{\"type\":\"ready\",\"uri\":\"{}\"}}",
@@ -22,11 +41,16 @@ fn run() -> Result<(), String> {
 
     for line in io::stdin().lock().lines() {
         let line = line.map_err(|error| error.to_string())?;
-        let mut fields = line.splitn(3, '\t');
+        let mut fields = line.split('\t');
         let (Some(id), Some(operation)) = (fields.next(), fields.next()) else {
             continue;
         };
-        let argument = fields.next();
+        let arguments = fields.collect::<Vec<_>>();
+        let argument = arguments.first().copied();
+
+        if resources::dispatch(id, operation, &arguments, &connection)? {
+            continue;
+        }
 
         match operation {
             "health" => write_health(id, &connection)?,
@@ -195,13 +219,21 @@ fn define_domain(id: &str, connection: &Connect, encoded_xml: &str) -> Result<()
 }
 
 fn write_definition_error(id: u64, error: &VirtError) -> Result<(), String> {
+    let code = match error.code() {
+        ErrorNumber::XmlError
+        | ErrorNumber::XmlDetail
+        | ErrorNumber::NoName
+        | ErrorNumber::NoOs => "INVALID_DEFINITION",
+        _ => "HOST_ERROR",
+    };
     write_line(&format!(
         concat!(
             "{{\"id\":{},\"ok\":false,",
-            "\"code\":\"INVALID_DEFINITION\",",
+            "\"code\":\"{}\",",
             "\"error\":\"{}\"}}"
         ),
         id,
+        code,
         escape_json(error.message())
     ))
 }
@@ -522,7 +554,7 @@ fn write_domains(id: &str, connection: &Connect) -> Result<(), String> {
     ))
 }
 
-fn domain_state_name(state: virt::sys::virDomainState) -> &'static str {
+pub(crate) fn domain_state_name(state: virt::sys::virDomainState) -> &'static str {
     match state {
         virt::sys::VIR_DOMAIN_RUNNING => "running",
         virt::sys::VIR_DOMAIN_BLOCKED => "blocked",
@@ -535,12 +567,53 @@ fn domain_state_name(state: virt::sys::virDomainState) -> &'static str {
     }
 }
 
-fn parse_uri() -> Result<String, String> {
+struct HostOptions {
+    uri: String,
+    read_only: bool,
+    binary_transport: bool,
+    auth_types: Option<Vec<u32>>,
+}
+
+fn parse_options() -> Result<HostOptions, String> {
     let mut args = env::args().skip(1);
-    match (args.next().as_deref(), args.next()) {
-        (Some("--uri"), Some(uri)) if !uri.is_empty() => Ok(uri),
-        _ => Err("usage: wasm-libvirt-host --uri <connection-uri>".to_owned()),
+    let mut uri = None;
+    let mut read_only = false;
+    let mut binary_transport = false;
+    let mut auth_types = None;
+    while let Some(argument) = args.next() {
+        match argument.as_str() {
+            "--uri" => uri = args.next(),
+            "--read-only" => read_only = true,
+            "--binary-fd" => binary_transport = true,
+            "--auth-types" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| "--auth-types requires a value".to_owned())?;
+                let parsed = value
+                    .split(',')
+                    .map(|item| {
+                        item.parse::<u32>().map_err(|_| {
+                            "auth credential type must be an unsigned integer".to_owned()
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                if parsed.is_empty() {
+                    return Err("at least one auth credential type is required".to_owned());
+                }
+                auth_types = Some(parsed);
+            }
+            _ => return Err("unsupported native host argument".to_owned()),
+        }
     }
+    let uri = uri.filter(|value| !value.is_empty()).ok_or_else(|| {
+        "usage: wasm-libvirt-host --uri <connection-uri> [--read-only] [--binary-fd] [--auth-types <types>]".to_owned()
+    })?;
+    Ok(HostOptions {
+        uri,
+        read_only,
+        binary_transport,
+        auth_types,
+    })
 }
 
 fn write_health(id: &str, connection: &Connect) -> Result<(), String> {
@@ -570,13 +643,13 @@ fn parse_id(id: &str) -> Result<u64, String> {
         .map_err(|_| "request id must be an unsigned integer".to_owned())
 }
 
-fn write_line(line: &str) -> Result<(), String> {
+pub(crate) fn write_line(line: &str) -> Result<(), String> {
     let mut stdout = io::stdout().lock();
     writeln!(stdout, "{line}").map_err(|error| error.to_string())?;
     stdout.flush().map_err(|error| error.to_string())
 }
 
-fn escape_json(value: &str) -> String {
+pub(crate) fn escape_json(value: &str) -> String {
     value
         .chars()
         .flat_map(|character| match character {
